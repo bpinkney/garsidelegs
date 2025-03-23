@@ -1,0 +1,6 @@
+../Core/Src/garsidelegs_hw_sensors.cpp:22:1:int __io_putchar(int)	16	static
+../Core/Src/garsidelegs_hw_sensors.cpp:38:6:void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef*)	0	static
+../Core/Src/garsidelegs_hw_sensors.cpp:45:6:void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef*)	0	static
+../Core/Src/garsidelegs_hw_sensors.cpp:52:9:uint8_t garsidelegs_hw_sensors_imu_init()	0	static
+../Core/Src/garsidelegs_hw_sensors.cpp:57:6:void garsidelegs_hw_sensors_imu_process_interrupt_sample()	24	static
+../Core/Src/garsidelegs_hw_sensors.cpp:135:6:void garsidelegs_hw_sensors_imu_process_poll_sample()	0	static
