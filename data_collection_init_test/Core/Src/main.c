@@ -144,10 +144,10 @@ int main(void)
   {
 
   	garsidelegs_hw_sensors_imu_process_poll_sample();
-
+  	HAL_Delay(10);
 	  // quick "alive" check for LEDs
-	  HAL_GPIO_WritePin(GPIOB, LD1_Pin, GPIO_PIN_SET);
-	  HAL_Delay(led_flash_delay_ms);
+	  //HAL_GPIO_WritePin(GPIOB, LD1_Pin, GPIO_PIN_SET);
+	  //HAL_Delay(led_flash_delay_ms);
 	  /*HAL_GPIO_WritePin(GPIOB, LD2_Pin, GPIO_PIN_SET);
 	  HAL_Delay(led_flash_delay_ms);
 	  HAL_GPIO_WritePin(GPIOB, LD3_Pin, GPIO_PIN_SET);
