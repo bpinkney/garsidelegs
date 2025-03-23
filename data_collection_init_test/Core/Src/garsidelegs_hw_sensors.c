@@ -13,7 +13,7 @@ static uint8_t I2C2_TX_Buffer[32];
 static uint8_t I2C2_RX_Buffer[32];
 
 // imu params
-const uint8_t gyro_odr  = ICM20649_GYRO_RANGE_4000_DPS;
+const uint8_t gyro_odr  = ICM20649_GYRO_RANGE_2000_DPS;
 const uint8_t accel_odr = ICM20649_ACCEL_RANGE_30_G;
 
 float garsidelegs_get_gyro_scale(void)
@@ -252,52 +252,12 @@ void HAL_I2C_write_poll(const int8_t address, const uint8_t reg, const uint8_t d
 }
 
 // I2C read abstraction for busypoll
-void HAL_I2C_read_poll(const int8_t address, const int8_t reg, const uint8_t num_bytes, const uint8_t special)
+void HAL_I2C_read_poll(const int8_t address, const int8_t reg, const uint8_t num_bytes)
 {
   // Blocking mode
 	// Note: the buffer must be on the heap (no unsized pointers allowed) (I2C2_RX_Buffer)
   if(HAL_I2C_IsDeviceReady(&hi2c2, address, 3, 1000))
 	{
-  	// set register to read from
-		memset(&I2C2_RX_Buffer, 0, sizeof(I2C2_RX_Buffer));
-
-		I2C2_RX_Buffer[0] = reg;
-
-		// if num_bytes is greater than 1, assume we just want to read offset to the init reg
-		// TODO: We could add an option where the I2C2_RX_Buffer is pre-filled with registers and this overwrite is bypassed if needed
-		if(special)
-		{
-			// special is just all repeats
-			for(int8_t byte_offset = 0; byte_offset < num_bytes; byte_offset++)
-			{
-				I2C2_RX_Buffer[byte_offset] = reg + byte_offset;
-			}
-
-		}
-		else
-		{
-			for(int8_t byte_offset = 0; byte_offset < num_bytes; byte_offset++)
-			{
-				I2C2_RX_Buffer[byte_offset] = reg + byte_offset;
-				//printf("** I2C read REG = %x ** \n\r", I2C2_RX_Buffer[byte_offset]);
-			}
-		}
-		//printf("** I2C read start TX ** \n\r");
-		// for bad reasons, we need to shift the address by one for reads and writes
-/*		if(HAL_I2C_Mem_Write(&hi2c2, address<<1, reg, num_bytes, I2C2_TX_Buffer, num_bytes, 1000) != HAL_OK)
-		{
-	     Error_Handler() function is called when Timeout error occurs.
-	       When Acknowledge failure occurs (Slave don't acknowledge its address)
-	       Master restarts communication
-			printf("** I2C read failed due to bad TX call! ** \n\r");
-     	    if (HAL_I2C_GetError(&hi2c2) != HAL_I2C_ERROR_AF)
-	    {
-	      Error_Handler();
-	      printf("** I2C read failed due to bad TX call! ** \n\r");
-	    }
-	    return;
-		}*/
-
 		//printf("** I2C read start RX ** \n\r");
 	  if(HAL_I2C_Mem_Read(&hi2c2, address<<1, reg, 1, I2C2_RX_Buffer, num_bytes, 1000) != HAL_OK)
 	  {
@@ -311,15 +271,6 @@ void HAL_I2C_read_poll(const int8_t address, const int8_t reg, const uint8_t num
 	      printf("** I2C read failed due to bad RX call! ** \n\r");
 	    }*/
 	    return;
-	  }
-
-	  if(special)
-	  {
-			for(uint8_t byte_offset = 0; byte_offset < num_bytes; byte_offset++)
-			{
-				printf("%d, ", I2C2_RX_Buffer[byte_offset]);
-			}
-			printf("\n\r");
 	  }
 	}
 	else
@@ -350,17 +301,20 @@ uint8_t garsidelegs_hw_sensors_imu_init(void)
 
 	// check whoami for IMU
 	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_REG_BANK_SEL, ICM20649_BANK(bank_number));
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_WHOAMI, 1, 0);
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_WHOAMI, 1);
 	// we expect 0xE1 back for WHOAMI
 	printf("ICM20649 WHOAMI 0x%02X == 0x%02X\n\r", ICM20649_DEVICE_ID, I2C2_RX_Buffer[0]);
 
 	// take the part out of (default) power saving mode by clearing bit 6
-	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_PWR_MGMT_1, 0x00);
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_PWR_MGMT_1, 1, 0);
+	// select default oscillator
+	uint8_t pwr_mgmt_1 = 0;
+	pwr_mgmt_1 |= 0x01;
+	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_PWR_MGMT_1, pwr_mgmt_1);
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_PWR_MGMT_1, 1);
 	printf("ICM20649 Clear Sleep Mode 0x%02X == 0x%02X \n\r", 0x00, I2C2_RX_Buffer[0]);
 
 	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_PWR_MGMT_2, 0x00);
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_PWR_MGMT_2, 1, 0);
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_PWR_MGMT_2, 1);
 	printf("ICM20649 Clear Accel Gyro Disable 0x%02X == 0x%02X \n\r", 0x00, I2C2_RX_Buffer[0]);
 
 	//// Set gyro rate divisor (ODR) and LPFILT behaviour
@@ -370,11 +324,11 @@ uint8_t garsidelegs_hw_sensors_imu_init(void)
 	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_REG_BANK_SEL, ICM20649_BANK(bank_number));
 
 	// zero for max ODR, for 1100/11 -> 100Hz, go for 10 for now
-	const uint8_t ODR_factor_gyro = 10;
+/*	const uint8_t ODR_factor_gyro = 10;
 	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_GYRO_SMPLRT_DIV, ODR_factor_gyro);
 	// verify accel ODR was set correctly
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_GYRO_SMPLRT_DIV, 1, 0);
-	printf("ICM20649 Gyro ODR 0x%02X == 0x%02X \n\r", ODR_factor_gyro, I2C2_RX_Buffer[0]);
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_GYRO_SMPLRT_DIV, 1);
+	printf("ICM20649 Gyro ODR 0x%02X == 0x%02X \n\r", ODR_factor_gyro, I2C2_RX_Buffer[0]);*/
 
 
 	// bits:
@@ -383,7 +337,7 @@ uint8_t garsidelegs_hw_sensors_imu_init(void)
 	// 2:1 GYRO_FS_SEL[1:0]
 	// Gyro Full Scale Select (start with 1000):
 	// 00 = ±500 dps
-	// 01= ±1000 dps
+	// 01 = ±1000 dps
 	// 10 = ±2000 dps
 	// 11 = ±4000 dps
 	// 0 GYRO_FCHOICE - Must be 1 for non-zero GYRO_DLPFCFG
@@ -394,18 +348,18 @@ uint8_t garsidelegs_hw_sensors_imu_init(void)
 	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_GYRO_CONFIG_1, gyro_config);
 
 	// verify gyro config was set correctly
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_GYRO_CONFIG_1, 1, 0);
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_GYRO_CONFIG_1, 1);
 	printf("ICM20649 Gyro Config 0x%02X == 0x%02X \n\r", gyro_config, I2C2_RX_Buffer[0]);
 
 	//// Set accel rate divisor (ODR) and LPFILT behaviour
 	// For now, we'll pick a smoother filter for fun (change later if delay is too large)
 	// zero for max ODR, for 1100/11 -> 100Hz, go for 10 for now
-	const uint8_t ODR_factor_accel = 10;
+/*	const uint8_t ODR_factor_accel = 10;
 	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_ACCEL_SMPLRT_DIV_2, ODR_factor_accel);
 
 	// verify accel ODR was set correctly
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_ACCEL_SMPLRT_DIV_2, 1, 0);
-	printf("ICM20649 Accel ODR 0x%02X == 0x%02X \n\r", ODR_factor_accel, I2C2_RX_Buffer[0]);
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_ACCEL_SMPLRT_DIV_2, 1);
+	printf("ICM20649 Accel ODR 0x%02X == 0x%02X \n\r", ODR_factor_accel, I2C2_RX_Buffer[0]);*/
 
 	// bits:
 	// 5:3 ACCEL_DLPFCFG[2:0] - Accel low pass filter configuration as shown in Table 17
@@ -424,7 +378,7 @@ uint8_t garsidelegs_hw_sensors_imu_init(void)
 	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_ACCEL_CONFIG_1, accel_config);
 
 	// verify accel config was set correctly
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_ACCEL_CONFIG_1, 1, 0);
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_ACCEL_CONFIG_1, 1);
 	printf("ICM20649 Accel Config 0x%02X == 0x%02X \n\r", accel_config, I2C2_RX_Buffer[0]);
 
 	// Revert bank number
@@ -453,7 +407,7 @@ void garsidelegs_hw_sensors_imu_process_poll_sample(void)
 
 	// Read Accel 6 bytes, gyro 6 bytes, temp, and 9 bytes of mag
 	num_bytes = 6+6+2;
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_ACCEL_XOUT_H, num_bytes, 0);
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_ACCEL_XOUT_H, num_bytes);
 
 	int16_t rawAccX = I2C2_RX_Buffer[0] << 8 | I2C2_RX_Buffer[1];
 	int16_t rawAccY = I2C2_RX_Buffer[2] << 8 | I2C2_RX_Buffer[3];
@@ -483,6 +437,7 @@ void garsidelegs_hw_sensors_imu_process_poll_sample(void)
 
 	// TODO: This is garbage data, fix it
 
+/*
 	printf("ICM20649 Raw Sample:\n\r   gyro = [%0.2f, %0.2f, %0.2f] deg/s\n\r  accel = [%0.2f, %0.2f, %0.2f] m/s^2\n\r   temp = %0.2fC\n\r",
 			(float)rawGyroX * garsidelegs_get_gyro_scale(),
 			(float)rawGyroY * garsidelegs_get_gyro_scale(),
@@ -491,6 +446,12 @@ void garsidelegs_hw_sensors_imu_process_poll_sample(void)
 			(float)rawAccY  * garsidelegs_get_accel_scale() * GRAV,
 			(float)rawAccZ  * garsidelegs_get_accel_scale() * GRAV,
 			(temperature / 333.87) + 21.0);
+*/
+
+	printf("%0.2f, %0.2f, %0.2f; ...\n\r",
+			(float)rawGyroX * garsidelegs_get_gyro_scale(),
+			(float)rawGyroY * garsidelegs_get_gyro_scale(),
+			(float)rawGyroZ * garsidelegs_get_gyro_scale());
 
 	//num_bytes = 2;
 	//HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_GYRO_XOUT_H, num_bytes, 1);
