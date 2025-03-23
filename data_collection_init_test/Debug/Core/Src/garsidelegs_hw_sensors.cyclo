@@ -1,7 +1,9 @@
-../Core/Src/garsidelegs_hw_sensors.c:16:6:HAL_I2C_MasterTxCpltCallback	1
-../Core/Src/garsidelegs_hw_sensors.c:23:6:HAL_I2C_MasterRxCpltCallback	1
-../Core/Src/garsidelegs_hw_sensors.c:32:6:garsidelegs_hw_sensors_imu_process_interrupt_sample	10
-../Core/Src/garsidelegs_hw_sensors.c:111:6:HAL_I2C_write_poll	3
-../Core/Src/garsidelegs_hw_sensors.c:146:6:HAL_I2C_read_poll	9
-../Core/Src/garsidelegs_hw_sensors.c:233:9:garsidelegs_hw_sensors_imu_init	1
-../Core/Src/garsidelegs_hw_sensors.c:325:6:garsidelegs_hw_sensors_imu_process_poll_sample	1
+../Core/Src/garsidelegs_hw_sensors.c:19:7:garsidelegs_get_gyro_scale	5
+../Core/Src/garsidelegs_hw_sensors.c:35:7:garsidelegs_get_accel_scale	5
+../Core/Src/garsidelegs_hw_sensors.c:51:6:HAL_I2C_MasterTxCpltCallback	1
+../Core/Src/garsidelegs_hw_sensors.c:58:6:HAL_I2C_MasterRxCpltCallback	1
+../Core/Src/garsidelegs_hw_sensors.c:67:6:garsidelegs_hw_sensors_imu_process_interrupt_sample	10
+../Core/Src/garsidelegs_hw_sensors.c:220:6:HAL_I2C_write_poll	3
+../Core/Src/garsidelegs_hw_sensors.c:255:6:HAL_I2C_read_poll	8
+../Core/Src/garsidelegs_hw_sensors.c:345:9:garsidelegs_hw_sensors_imu_init	1
+../Core/Src/garsidelegs_hw_sensors.c:437:6:garsidelegs_hw_sensors_imu_process_poll_sample	1

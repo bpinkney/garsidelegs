@@ -12,6 +12,41 @@ static uint8_t I2C2_RX_Buffer_data_ready = 0;
 static uint8_t I2C2_TX_Buffer[32];
 static uint8_t I2C2_RX_Buffer[32];
 
+// imu params
+const uint8_t gyro_odr  = ICM20649_GYRO_RANGE_4000_DPS;
+const uint8_t accel_odr = ICM20649_ACCEL_RANGE_30_G;
+
+float garsidelegs_get_gyro_scale(void)
+{
+	float gyro_scale = 1;
+
+  if (gyro_odr == ICM20649_GYRO_RANGE_500_DPS)
+    gyro_scale = 1.0/65.5;
+  if (gyro_odr == ICM20649_GYRO_RANGE_1000_DPS)
+    gyro_scale = 1.0/32.8;
+  if (gyro_odr == ICM20649_GYRO_RANGE_2000_DPS)
+    gyro_scale = 1.0/16.4;
+  if (gyro_odr == ICM20649_GYRO_RANGE_4000_DPS)
+    gyro_scale = 1.0/8.2;
+
+  return gyro_scale;
+}
+
+float garsidelegs_get_accel_scale(void)
+{
+	float accel_scale = 1;
+  if (accel_odr == ICM20649_ACCEL_RANGE_4_G)
+    accel_scale = 1.0/8192.0;
+  if (accel_odr == ICM20649_ACCEL_RANGE_8_G)
+    accel_scale = 1.0/4096.0;
+  if (accel_odr == ICM20649_ACCEL_RANGE_16_G)
+    accel_scale = 1.0/2048.0;
+  if (accel_odr == ICM20649_ACCEL_RANGE_30_G)
+    accel_scale = 1.0/1024.0;
+
+  return accel_scale;
+}
+
 // Overloaded I2C handlers for interrupt
 void HAL_I2C_MasterTxCpltCallback (I2C_HandleTypeDef * hi2c)
 {
@@ -192,11 +227,11 @@ void HAL_I2C_write_poll(const int8_t address, const uint8_t reg, const uint8_t d
 		memset(&I2C2_TX_Buffer, 0, sizeof(I2C2_TX_Buffer));
 
 		// set register and data to set
-		I2C2_TX_Buffer[0] = reg;
-		I2C2_TX_Buffer[1] = data;
+		I2C2_TX_Buffer[0] = data;
+		//I2C2_TX_Buffer[1] = data;
 
 		// for bad reasons, we need to shift the address by one for reads and writes
-		if(HAL_I2C_Master_Transmit(&hi2c2, address<<1, I2C2_TX_Buffer, 2, 50) != HAL_OK)
+		if(HAL_I2C_Mem_Write(&hi2c2, address<<1, reg, 1, I2C2_TX_Buffer, 1, 50) != HAL_OK)
 		{
 	    /* Error_Handler() function is called when Timeout error occurs.
 	       When Acknowledge failure occurs (Slave don't acknowledge its address)
@@ -224,7 +259,10 @@ void HAL_I2C_read_poll(const int8_t address, const int8_t reg, const uint8_t num
   if(HAL_I2C_IsDeviceReady(&hi2c2, address, 3, 1000))
 	{
   	// set register to read from
-		memset(&I2C2_TX_Buffer, 0, sizeof(I2C2_TX_Buffer));
+		memset(&I2C2_RX_Buffer, 0, sizeof(I2C2_RX_Buffer));
+
+		I2C2_RX_Buffer[0] = reg;
+
 		// if num_bytes is greater than 1, assume we just want to read offset to the init reg
 		// TODO: We could add an option where the I2C2_RX_Buffer is pre-filled with registers and this overwrite is bypassed if needed
 		if(special)
@@ -232,7 +270,7 @@ void HAL_I2C_read_poll(const int8_t address, const int8_t reg, const uint8_t num
 			// special is just all repeats
 			for(int8_t byte_offset = 0; byte_offset < num_bytes; byte_offset++)
 			{
-				I2C2_TX_Buffer[byte_offset] = reg + byte_offset;
+				I2C2_RX_Buffer[byte_offset] = reg + byte_offset;
 			}
 
 		}
@@ -240,28 +278,28 @@ void HAL_I2C_read_poll(const int8_t address, const int8_t reg, const uint8_t num
 		{
 			for(int8_t byte_offset = 0; byte_offset < num_bytes; byte_offset++)
 			{
-				I2C2_TX_Buffer[byte_offset] = reg + byte_offset;
+				I2C2_RX_Buffer[byte_offset] = reg + byte_offset;
 				//printf("** I2C read REG = %x ** \n\r", I2C2_RX_Buffer[byte_offset]);
 			}
 		}
 		//printf("** I2C read start TX ** \n\r");
 		// for bad reasons, we need to shift the address by one for reads and writes
-		if(HAL_I2C_Master_Transmit(&hi2c2, address<<1, I2C2_TX_Buffer, num_bytes, 1000) != HAL_OK)
+/*		if(HAL_I2C_Mem_Write(&hi2c2, address<<1, reg, num_bytes, I2C2_TX_Buffer, num_bytes, 1000) != HAL_OK)
 		{
-	    /* Error_Handler() function is called when Timeout error occurs.
+	     Error_Handler() function is called when Timeout error occurs.
 	       When Acknowledge failure occurs (Slave don't acknowledge its address)
-	       Master restarts communication */
+	       Master restarts communication
 			printf("** I2C read failed due to bad TX call! ** \n\r");
-     /*	    if (HAL_I2C_GetError(&hi2c2) != HAL_I2C_ERROR_AF)
+     	    if (HAL_I2C_GetError(&hi2c2) != HAL_I2C_ERROR_AF)
 	    {
 	      Error_Handler();
 	      printf("** I2C read failed due to bad TX call! ** \n\r");
-	    }*/
+	    }
 	    return;
-		}
+		}*/
 
 		//printf("** I2C read start RX ** \n\r");
-	  if(HAL_I2C_Master_Receive(&hi2c2, address<<1, I2C2_RX_Buffer, num_bytes, 1000) != HAL_OK)
+	  if(HAL_I2C_Mem_Read(&hi2c2, address<<1, reg, 1, I2C2_RX_Buffer, num_bytes, 1000) != HAL_OK)
 	  {
 	    /* Error_Handler() function is called when Timeout error occurs.
 	       When Acknowledge failure occurs (Slave don't acknowledge it's address)
@@ -350,9 +388,9 @@ uint8_t garsidelegs_hw_sensors_imu_init(void)
 	// 11 = ±4000 dps
 	// 0 GYRO_FCHOICE - Must be 1 for non-zero GYRO_DLPFCFG
 	uint8_t gyro_config = 0;
-	//gyro_config |= 0x4 << 3; 		// GYRO_DLPFCFG
-	gyro_config |= ICM20649_GYRO_RANGE_1000_DPS << 1;   // GYRO_FS_SEL
-	//gyro_config |= 0x1;         // GYRO_FCHOICE
+	gyro_config |= 0x4 << 3; 		// GYRO_DLPFCFG
+	gyro_config |= gyro_odr << 1;   // GYRO_FS_SEL
+	gyro_config |= 0x1;         // GYRO_FCHOICE
 	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_GYRO_CONFIG_1, gyro_config);
 
 	// verify gyro config was set correctly
@@ -380,9 +418,9 @@ uint8_t garsidelegs_hw_sensors_imu_init(void)
 	// 11: ±30g
 	// 0 ACCEL_FCHOICE  - Must be 1 for non-zero ACCEL_DLPFCFG
 	uint8_t accel_config = 0;
-	//accel_config |= 0x4 << 3; 	 // GYRO_DLPFCFG
-	accel_config |= ICM20649_ACCEL_RANGE_30_G << 1;   // GYRO_FS_SEL
-	//accel_config |= 0x1;         // GYRO_FCHOICE
+	accel_config |= 0x4 << 3; 	 			// ACCEL_DLPFCFG
+	accel_config |= accel_odr << 1;   // ACCEL_FS_SEL
+	accel_config |= 0x1;         			// ACCEL_FCHOICE
 	HAL_I2C_write_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B2_ACCEL_CONFIG_1, accel_config);
 
 	// verify accel config was set correctly
@@ -401,7 +439,7 @@ void garsidelegs_hw_sensors_imu_process_poll_sample(void)
 	//printf("** IMU read start ** \n\r");
 
 	// Note: bank number persists until changed
-	uint8_t bank_number = 0;
+	//uint8_t bank_number = 0;
 	uint8_t num_bytes = 0;
 
 	// Revert bank number
@@ -411,41 +449,51 @@ void garsidelegs_hw_sensors_imu_process_poll_sample(void)
 	//HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_GYRO_XOUT_H, 1);
 	//int16_t rawGyroXind = I2C2_RX_Buffer[0] << 8;
 	//HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_GYRO_XOUT_L, 1);
-/*	rawGyroXind |= I2C2_RX_Buffer[0];
+	//rawGyroXind |= I2C2_RX_Buffer[0];
 
 	// Read Accel 6 bytes, gyro 6 bytes, temp, and 9 bytes of mag
-	num_bytes = 6;
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_ACCEL_XOUT_H, num_bytes);
+	num_bytes = 6+6+2;
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_ACCEL_XOUT_H, num_bytes, 0);
 
 	int16_t rawAccX = I2C2_RX_Buffer[0] << 8 | I2C2_RX_Buffer[1];
 	int16_t rawAccY = I2C2_RX_Buffer[2] << 8 | I2C2_RX_Buffer[3];
 	int16_t rawAccZ = I2C2_RX_Buffer[4] << 8 | I2C2_RX_Buffer[5];
 
-	num_bytes = 6;
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_GYRO_XOUT_H, num_bytes);
+	//HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_GYRO_XOUT_H, num_bytes, 0);
+
+	int16_t rawGyroX = I2C2_RX_Buffer[6] << 8 | I2C2_RX_Buffer[7];
+	int16_t rawGyroY = I2C2_RX_Buffer[8] << 8 | I2C2_RX_Buffer[9];
+	int16_t rawGyroZ = I2C2_RX_Buffer[10] << 8 | I2C2_RX_Buffer[11];
+
+	//HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_TEMP_OUT_H, num_bytes, 0);
+
+	int16_t temperature = I2C2_RX_Buffer[12] << 8 | I2C2_RX_Buffer[13];
+
+/*	num_bytes = 6;
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_GYRO_XOUT_H, num_bytes, 0);
 
 	int16_t rawGyroX = I2C2_RX_Buffer[0] << 8 | I2C2_RX_Buffer[1];
 	int16_t rawGyroY = I2C2_RX_Buffer[2] << 8 | I2C2_RX_Buffer[3];
 	int16_t rawGyroZ = I2C2_RX_Buffer[4] << 8 | I2C2_RX_Buffer[5];
 
 	num_bytes = 2;
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_TEMP_OUT_H, num_bytes);
+	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_TEMP_OUT_H, num_bytes, 0);
 
-	int16_t temperature = I2C2_RX_Buffer[0] << 8 | I2C2_RX_Buffer[1];
+	int16_t temperature = I2C2_RX_Buffer[0] << 8 | I2C2_RX_Buffer[1];*/
 
 	// TODO: This is garbage data, fix it
 
-	printf("ICM20649 Raw Sample:\n\r   gyro = [%0.2f (%d -> %d), %0.2f, %0.2f]\n\r  accel = [%d, %d, %d]\n\r   temp = [%d]\n\r",
-			(float)rawGyroX / 32.8, rawGyroX, rawGyroXind,
-			(float)rawGyroY / 32.8,
-			(float)rawGyroZ / 32.8,
-			rawAccX,
-			rawAccY,
-			rawAccZ,
-			temperature);*/
+	printf("ICM20649 Raw Sample:\n\r   gyro = [%0.2f, %0.2f, %0.2f] deg/s\n\r  accel = [%0.2f, %0.2f, %0.2f] m/s^2\n\r   temp = %0.2fC\n\r",
+			(float)rawGyroX * garsidelegs_get_gyro_scale(),
+			(float)rawGyroY * garsidelegs_get_gyro_scale(),
+			(float)rawGyroZ * garsidelegs_get_gyro_scale(),
+			(float)rawAccX  * garsidelegs_get_accel_scale() * GRAV,
+			(float)rawAccY  * garsidelegs_get_accel_scale() * GRAV,
+			(float)rawAccZ  * garsidelegs_get_accel_scale() * GRAV,
+			(temperature / 333.87) + 21.0);
 
-	num_bytes = 2;
-	HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_GYRO_XOUT_H, num_bytes, 1);
+	//num_bytes = 2;
+	//HAL_I2C_read_poll(ICM20649_I2CADDR_DEFAULT, ICM20X_B0_GYRO_XOUT_H, num_bytes, 1);
 
 
 }
